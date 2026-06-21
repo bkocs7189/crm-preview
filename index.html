@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<!-- QA-2: inline SVG favicon — a present rel=icon suppresses the browser's default /favicon.ico request, clearing the console 404 -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f7cff'/%3E%3Ctext x='16' y='22' font-family='Arial,sans-serif' font-size='18' font-weight='700' fill='%23ffffff' text-anchor='middle'%3EA%3C/text%3E%3C/svg%3E"/>
 <title>Agency CRM — Dashboard · Contacts · Companies · Pipeline · Deals · Activities</title>
 <style>
   :root{
@@ -123,7 +125,21 @@
   .authcard h1{font-size:19px;margin:0 0 4px}
   .authcard p.sub{font-size:13px;margin:0 0 20px}
   .autherr{color:var(--red);font-size:13px;margin:0 0 12px;display:none}
-  @media(max-width:980px){ .twocol{grid-template-columns:1fr} .side{width:60px} .brand small,.nav span:not(.ic):not(.c),.ownerbox,.side .foot .btn{display:none} }
+  /* QA-1: hamburger + off-canvas mobile nav */
+  .hamburger{display:none;background:var(--panel2);border:1px solid var(--line);color:var(--txt);font-size:18px;line-height:1;padding:7px 11px;border-radius:9px;cursor:pointer}
+  .navbackdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:35}
+  /* tablet: collapse sidebar to an icon rail (above the mobile drawer breakpoint) */
+  @media(min-width:701px) and (max-width:980px){ .twocol{grid-template-columns:1fr} .side{width:60px} .brand small,.nav span:not(.ic):not(.c),.ownerbox,.side .foot .btn{display:none} }
+  /* phone: sidebar becomes an off-canvas drawer toggled by the hamburger */
+  @media(max-width:700px){
+    .twocol{grid-template-columns:1fr}
+    .hamburger{display:inline-flex;align-items:center;justify-content:center}
+    .side{position:fixed;left:0;top:0;height:100vh;width:248px;max-width:84vw;z-index:40;transform:translateX(-100%);transition:transform .22s ease;overflow-y:auto}
+    .app.navopen .side{transform:translateX(0);box-shadow:0 0 44px rgba(0,0,0,.6)}
+    .app.navopen .navbackdrop{display:block}
+    .main{padding:18px 16px}
+    .topbar{padding:12px 14px}
+  }
 </style>
 </head>
 <body>
@@ -153,8 +169,10 @@
       <div id="syncstatus" style="margin-top:4px;font-size:11px;font-weight:600;color:#d97706">● Connecting…</div>
     </div>
   </aside>
+  <div class="navbackdrop" onclick="toggleNav(false)"></div>
   <div class="body">
     <div class="topbar">
+      <button class="hamburger" id="hamburger" aria-label="Toggle navigation" aria-expanded="false" onclick="toggleNav()">☰</button>
       <div class="topsearch">
         <input id="gsearch" autocomplete="off" placeholder="🔍  Search people, companies, deals…" oninput="globalSearch(this.value)" onblur="setTimeout(()=>{const r=document.getElementById('gresults');if(r)r.innerHTML='';},180)">
         <div id="gresults"></div>
@@ -333,7 +351,8 @@ function renderCounts(){
 function openModal(html){ const m=document.getElementById("modal"); m.innerHTML=html; document.getElementById("modal-bg").classList.add("show"); }
 function closeModal(){ document.getElementById("modal-bg").classList.remove("show"); }
 document.getElementById("modal-bg").addEventListener("click",e=>{ if(e.target.id==="modal-bg") closeModal(); });
-function go(v){ VIEW=v; document.querySelectorAll(".nav").forEach(n=>n.classList.toggle("active",n.dataset.view===v)); render(); }
+function toggleNav(force){ const app=document.getElementById("app"); const open=(typeof force==="boolean")?force:!app.classList.contains("navopen"); app.classList.toggle("navopen",open); const h=document.getElementById("hamburger"); if(h)h.setAttribute("aria-expanded",String(open)); }
+function go(v){ VIEW=v; document.querySelectorAll(".nav").forEach(n=>n.classList.toggle("active",n.dataset.view===v)); toggleNav(false); render(); }
 document.querySelectorAll(".nav").forEach(n=>n.addEventListener("click",()=>go(n.dataset.view)));
 
 /* ---------- undo toast (§3.3, 6s) ---------- */
