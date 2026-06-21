@@ -1,28 +1,64 @@
-# Convergence CRM — Preview SPA
+# Agency CRM (OMN-56)
 
-Single-file CRM single-page app (vanilla JS + Supabase JS client), deployed to GitHub Pages.
-Built for **OMN-58** (CRM Frontend SPA), same stack/pattern as the EOS Tracker.
+A fully custom internal sales CRM web app — replaces third-party CRM SaaS
+(HubSpot integration cancelled). Single-file static SPA, same stack as the EOS
+Tracker, bound to the canonical CRM backend (OMN-59).
 
-## Live preview
-https://bkocs7189.github.io/crm-preview/
+**Live preview:** GitHub Pages — `bkocs7189/crm-preview`
+(https://bkocs7189.github.io/crm-preview/)
+**Sign-in:** Supabase Auth (email/password). A demo board login is provisioned
+for preview/QA — see *Access* below.
 
-**Board access code:** `crm-convergence-2026` (client-side SHA-256 gate, same pattern as EOS Tracker)
+## Modules (OMN-60 design-spec 6-module IA; conformance closed in OMN-74)
+- **Dashboard** — open pipeline, weighted forecast (server-computed), Won-MTD-vs-target bar, pipeline-by-stage, top open deals, activity feed, and **needs-attention** nudges (overdue / stalled / cold)
+- **Contacts** — people (polymorphic `contacts.kind`), search, tags, **cold-contact** flag (no activity 30d+)
+- **Companies** — first-class accounts module; people roll up; open pipeline summed per account
+- **Pipeline** — Kanban (drag-to-move stage); live column totals; **stalled-deal** flag (in-stage >21d, amber edge); Won→confirm-amount / Lost→reason on stage move
+- **Deals** — forecast table; weighted (computed) column + filter-aware footer totals; Open/Won/Lost/All segments
+- **Activities** — calls / emails / meetings / notes / tasks logged against contacts & deals
 
-## Modules
-- **Dashboard** — open-pipeline / won summary cards, pipeline-by-stage, recent activity feed
-- **Contacts** — searchable list, detail drawer with company/deals/activity timeline, inline create/edit
-- **Pipeline** — Kanban board with drag-and-drop stage moves (persists to Supabase)
-- **Deals** — list + detail drawer, inline edit, stage/probability, close-date picker
-- **Activities** — log call/email/meeting/note/task, link to contact and/or deal
+## Shared layer (§3)
+Global search (people/companies/deals), global `[+ New]`, **owner-scope** filter
+(All / Mine / Unassigned via `owner_id`), **Editor/Viewer** read-only variant
+(UX only — RLS is the real boundary), and an optimistic **6s undo toast** on
+every mutation (real inverse Supabase writes).
 
 ## Stack
-- Vanilla JS, no build step, single `index.html`
-- `@supabase/supabase-js@2` via CDN
-- Backend: Supabase project `Convergence` (`krthbgtykwamxqvapxnx`)
-- Mobile-responsive (collapsible nav, full-width drawer)
+- Single-file static SPA (`index.html`), no build step — deploys to GitHub Pages
+- Shared backend: Supabase Postgres (project **Convergence** `krthbgtykwamxqvapxnx`),
+  schema `public`, canonical tables from OMN-59:
+  `pipelines`, `pipeline_stages`, `contacts`, `deals`, `activities`, `notes`
+- **Computed server-side:** `deals.weighted_value` is a generated column
+  (`value × probability`); a trigger inherits the stage default probability and
+  syncs `status`/`closed_at` on won/lost stages. The SPA never computes or writes
+  these — it reads them back after each write.
+- Writes are **per-row** (insert / update / delete) and re-select the affected row
+  so generated + trigger-set fields round-trip into the UI immediately.
 
-## Backend note (coordination)
-This preview reads/writes isolated, anon-accessible `crmui_*` tables so it stays decoupled
-from the canonical CRM backend (OMN-59), which was actively migrating during the build.
-Data contract (table → columns) is documented on OMN-58 for convergence with OMN-59.
-Final access model + RLS hardening are owned by OMN-59 (backend) and OMN-62 (security review).
+## Access & security posture
+- Entry is gated by **Supabase Auth** (email/password sign-in). This replaces the
+  earlier SHA-256 access-code gate.
+- RLS grants CRUD only to the `authenticated` role; the `anon` (publishable) key
+  alone returns **nothing**. The publishable key in `index.html` only identifies
+  the project and is safe to ship.
+- Demo board login for preview/QA: `crm-demo@agency.local` / `CrmDemo2026!`
+  (a confirmed Supabase Auth user; rotate or remove before any real customer data).
+  **Do not recreate or re-seed this account** — it already exists and is
+  email-confirmed. Recreating it re-hashes the password and drifts it away from
+  this documented value (observed once during OMN-75; QA reset it back). If the
+  password ever needs changing, update it here in the same change so docs and the
+  Supabase Auth account stay in sync.
+- This closes the anon-CRUD exposure of the previous `crm56_*` prototype tables,
+  which the backend (OMN-59) and security review (OMN-62) are dropping.
+
+## Schema deltas (tracked on OMN-67)
+The canonical schema is leaner than the earlier prototype. Fields with no column
+in OMN-59 were dropped from the UI rather than faked: per-row text `owner`
+(canonical uses `owner_id` → `auth.users`, auto-set to the signed-in user),
+company `industry`, person `custom_fields`, activity `done`/task-checkbox, and
+freeform per-entity `notes` text (a dedicated `notes` table exists and can back a
+notes panel later). Restoring these is a schema decision for Backend on OMN-67.
+
+## Local dev
+Open `index.html` in a browser, or `python3 -m http.server` and visit the page.
+Sign in with the demo login above.
